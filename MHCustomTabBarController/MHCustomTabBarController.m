@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Martin Hartl
+ * Copyright (c) 2013 Martin Hartl
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,57 +27,61 @@
 NSString *const MHCustomTabBarControllerViewControllerChangedNotification = @"MHCustomTabBarControllerViewControllerChangedNotification";
 NSString *const MHCustomTabBarControllerViewControllerAlreadyVisibleNotification = @"MHCustomTabBarControllerViewControllerAlreadyVisibleNotification";
 
-@interface MHCustomTabBarController ()
-
-@property (nonatomic, strong) NSMutableDictionary *viewControllersByIdentifier;
-@property (strong, nonatomic) NSString *destinationIdentifier;
-@property (nonatomic) IBOutletCollection(UIButton) NSArray *buttons;
-
-@end
-
-@implementation MHCustomTabBarController
+@implementation MHCustomTabBarController {
+    NSMutableDictionary *_viewControllersByIdentifier;
+}
 
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    self.viewControllersByIdentifier = [NSMutableDictionary dictionary];
+    _viewControllersByIdentifier = [NSMutableDictionary dictionary];
+    self.controllerArray = [[NSMutableArray alloc]init];
 }
 
-- (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
+-(void) viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
     
+    /*
     if (self.childViewControllers.count < 1) {
         [self performSegueWithIdentifier:@"viewController1" sender:[self.buttons objectAtIndex:0]];
     }
+     */
 }
 
 - (void)willAnimateRotationToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration {
     self.destinationViewController.view.frame = self.container.bounds;
 }
 
+
+
 #pragma mark - Segue
-- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+
+-(void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
    
     if (![segue isKindOfClass:[MHTabBarSegue class]]) {
         [super prepareForSegue:segue sender:sender];
         return;
     }
     
-    self.oldViewController = self.destinationViewController;
+    self.oldViewController = segue.destinationViewController;
     
     //if view controller isn't already contained in the viewControllers-Dictionary
-    if (![self.viewControllersByIdentifier objectForKey:segue.identifier]) {
-        [self.viewControllersByIdentifier setObject:segue.destinationViewController forKey:segue.identifier];
+    if (![_viewControllersByIdentifier objectForKey:segue.identifier]) {
+        [_viewControllersByIdentifier setObject:segue.destinationViewController forKey:segue.identifier];
     }
     
-    [self.buttons setValue:@NO forKeyPath:@"selected"];
-    [sender setSelected:YES];
-    self.selectedIndex = [self.buttons indexOfObject:sender];
-
+    for (UIButton *aButton in self.buttons) {
+        [aButton setSelected:NO];
+    }
+        
+    UIButton *button = (UIButton *)sender;
+    [button setSelected:YES];
     self.destinationIdentifier = segue.identifier;
-    self.destinationViewController = [self.viewControllersByIdentifier objectForKey:self.destinationIdentifier];
+    self.destinationViewController = [_viewControllersByIdentifier objectForKey:self.destinationIdentifier];
     
     [[NSNotificationCenter defaultCenter] postNotificationName:MHCustomTabBarControllerViewControllerChangedNotification object:nil]; 
+
+    
 }
 
 - (BOOL)shouldPerformSegueWithIdentifier:(NSString *)identifier sender:(id)sender {
@@ -91,14 +95,42 @@ NSString *const MHCustomTabBarControllerViewControllerAlreadyVisibleNotification
 }
 
 #pragma mark - Memory Warning
+
 - (void)didReceiveMemoryWarning {
-    [[self.viewControllersByIdentifier allKeys] enumerateObjectsUsingBlock:^(NSString *key, NSUInteger idx, BOOL *stop) {
+   [[_viewControllersByIdentifier allKeys] enumerateObjectsUsingBlock:^(NSString *key, NSUInteger idx, BOOL *stop) {
         if (![self.destinationIdentifier isEqualToString:key]) {
-            [self.viewControllersByIdentifier removeObjectForKey:key];
+            [_viewControllersByIdentifier removeObjectForKey:key];
         }
     }];
-    
-    [super didReceiveMemoryWarning];
+  
+}
+
+-(void)moveTo:(UIViewController*)controller addVC:(BOOL)addVC
+{
+    //remove old viewController
+    if (self.container.subviews.count) {
+        [self.oldViewController viewWillDisappear:NO];
+        [self.oldViewController willMoveToParentViewController:nil];
+        [self.oldViewController.view removeFromSuperview];
+        [self.oldViewController removeFromParentViewController];
+    }
+    self.oldViewController = controller;
+    if(addVC)
+        [self.controllerArray addObject:controller];
+
+    [controller viewWillAppear:NO];
+    controller.view.frame = self.container.bounds;
+    [self addChildViewController:controller];
+    [self.container addSubview:controller.view];
+    [controller didMoveToParentViewController:self];
+}
+
+-(NSMutableArray*)getViewControllers{
+    return self.controllerArray;
+}
+
+-(UIViewController*)getOldViewControllers{
+    return self.oldViewController;
 }
 
 @end
